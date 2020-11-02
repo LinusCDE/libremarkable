@@ -2,6 +2,11 @@ use libremarkable::input::{ev::EvDevContext, ev::INPUT_DEVICE_PATHS, InputDevice
 use std::sync::mpsc::channel;
 
 fn main() {
+    let start = std::time::SystemTime::now();
+    let model = libremarkable::device::DEVICE.get_model();
+    let duration = start.elapsed();
+    println!("This is a {} (took {:?} to determine)", model, duration);
+
     // Display paths for InputDevices
     for device in [
         InputDevice::GPIO,
