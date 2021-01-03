@@ -1,3 +1,5 @@
+use std::io::{Cursor, Read, Seek, SeekFrom};
+
 use log::error;
 
 use crate::framebuffer;
@@ -77,24 +79,26 @@ impl<'a> framebuffer::FramebufferIO for framebuffer::core::Framebuffer<'a> {
 
         let line_length = self.fix_screen_info.line_length as u32;
         let bytespp = (self.var_screen_info.bits_per_pixel / 8) as usize;
-        let inbuffer = self.frame.data();
-        let mut outbuffer: Vec<u8> =
-            Vec::with_capacity(rect.height as usize * rect.width as usize * bytespp);
-        let outbuffer_ptr = outbuffer.as_mut_ptr();
+        let mut in_stream = Cursor::new(unsafe {
+            std::ptr::slice_from_raw_parts(self.frame.data(), self.frame.len())
+                .as_ref()
+                .unwrap()
+        });
+        let mut outbuffer = vec![0u8; rect.height as usize * rect.width as usize * bytespp];
 
         let mut written = 0;
         let chunk_size = bytespp * rect.width as usize;
         for row in 0..rect.height {
-            let curr_index = (row + rect.top) * line_length + (bytespp * rect.left as usize) as u32;
-            unsafe {
-                inbuffer
-                    .add(curr_index as usize)
-                    .copy_to_nonoverlapping(outbuffer_ptr.add(written), chunk_size);
-            }
+            in_stream
+                .seek(SeekFrom::Start(
+                    (row + rect.top) as u64 * line_length as u64
+                        + (bytespp * rect.left as usize) as u64,
+                ))
+                .expect("Seek failed");
+            in_stream
+                .read_exact(&mut outbuffer[written..(written + chunk_size)])
+                .expect("Write failed");
             written += chunk_size;
-        }
-        unsafe {
-            outbuffer.set_len(written);
         }
 
         Ok(outbuffer)
