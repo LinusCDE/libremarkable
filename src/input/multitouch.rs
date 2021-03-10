@@ -45,8 +45,8 @@ impl Default for Finger {
 }
 
 pub struct MultitouchState {
-    fingers: Mutex<FxHashMap<i32 /* slot */, Finger>>,
-    current_slot: AtomicI32,
+    pub fingers: Mutex<FxHashMap<i32 /* slot */, Finger>>,
+    pub current_slot: AtomicI32,
 }
 
 impl ::std::default::Default for MultitouchState {
