@@ -21,7 +21,7 @@ pub enum GPIOEvent {
 }
 
 pub struct GPIOState {
-    pub states: [AtomicBool; 5],
+    states: [AtomicBool; 5],
 }
 
 impl ::std::default::Default for GPIOState {

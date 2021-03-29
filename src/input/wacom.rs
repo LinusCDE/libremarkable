@@ -17,13 +17,13 @@ lazy_static! {
 }
 
 pub struct WacomState {
-    pub last_x: AtomicU16,
-    pub last_y: AtomicU16,
-    pub last_xtilt: AtomicU16,
-    pub last_ytilt: AtomicU16,
-    pub last_dist: AtomicU16,
-    pub last_pressure: AtomicU16,
-    pub last_tool: Atomic<Option<WacomPen>>,
+    last_x: AtomicU16,
+    last_y: AtomicU16,
+    last_xtilt: AtomicU16,
+    last_ytilt: AtomicU16,
+    last_dist: AtomicU16,
+    last_pressure: AtomicU16,
+    last_tool: Atomic<Option<WacomPen>>,
 }
 
 impl ::std::default::Default for WacomState {
