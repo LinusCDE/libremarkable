@@ -1,10 +1,11 @@
 use log::error;
 
+use super::Gen1;
 use crate::framebuffer;
 use crate::framebuffer::cgmath;
 use crate::framebuffer::common;
 
-impl<'a> framebuffer::FramebufferIO for framebuffer::core::Framebuffer<'a> {
+impl<'a> framebuffer::FramebufferIO for Gen1 {
     fn write_frame(&mut self, frame: &[u8]) {
         let begin = self.frame.as_mut_ptr();
         unsafe {
@@ -135,5 +136,17 @@ impl<'a> framebuffer::FramebufferIO for framebuffer::core::Framebuffer<'a> {
             written += chunk_size as u32;
         }
         Ok(written)
+    }
+
+    fn clear(&mut self) {
+        let h = self.var_screen_info.yres as usize;
+        let line_length = self.fix_screen_info.line_length as usize;
+        unsafe {
+            libc::memset(
+                self.frame.as_mut_ptr() as *mut libc::c_void,
+                std::i32::MAX,
+                line_length * h,
+            );
+        }
     }
 }

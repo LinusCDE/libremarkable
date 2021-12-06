@@ -1,14 +1,26 @@
 pub mod common;
+pub mod graphics;
 pub mod mxcfb;
 pub mod screeninfo;
-
 pub mod storage;
-
-pub mod io;
 
 pub mod swtfb_client;
 
 pub use cgmath;
+
+pub mod gen1;
+
+use rusttype::Font;
+
+const DEFAULT_FONT: Font = Font::try_from_bytes(include_bytes!("../../assets/Roboto-Regular.ttf"))
+    .expect("corrupted font data");
+
+/// Definition of what a framebuffer should implement.
+/// Can be used as replacement for all of these
+pub trait Framebuffer:
+    FramebufferBase + FramebufferIO + FramebufferDraw + FramebufferRefresh + Send + Sync
+{
+}
 
 pub trait FramebufferIO {
     /// Writes an arbitrary length frame into the framebuffer
@@ -29,9 +41,10 @@ pub trait FramebufferIO {
         rect: common::mxcfb_rect,
         data: &[u8],
     ) -> Result<u32, &'static str>;
-}
 
-mod graphics;
+    /// Clears the framebuffer however does not perform a refresh
+    fn clear(&mut self);
+}
 
 pub mod draw;
 pub trait FramebufferDraw {
@@ -92,6 +105,7 @@ pub trait FramebufferDraw {
         &mut self,
         pos: cgmath::Point2<f32>,
         text: &str,
+        font: &Font,
         size: f32,
         col: common::color,
         dryrun: bool,
@@ -106,14 +120,11 @@ pub trait FramebufferDraw {
     );
     /// Fills rectangle of size `size` at `pos`
     fn fill_rect(&mut self, pos: cgmath::Point2<i32>, size: cgmath::Vector2<u32>, c: common::color);
-    /// Clears the framebuffer however does not perform a refresh
-    fn clear(&mut self);
 }
 
-pub mod core;
-pub trait FramebufferBase<'a> {
+pub trait FramebufferBase {
     /// Creates a new instance of Framebuffer
-    fn from_path(path_to_device: &str) -> core::Framebuffer<'_>;
+    fn from_path(path_to_device: &str) -> dyn Framebuffer;
     /// Toggles the EPD Controller (see https://wiki.mobileread.com/wiki/EPD_controller)
     fn set_epdc_access(&mut self, state: bool);
     /// Toggles autoupdate mode
@@ -121,28 +132,26 @@ pub trait FramebufferBase<'a> {
     /// Toggles update scheme
     fn set_update_scheme(&mut self, scheme: u32);
     /// Creates a FixScreeninfo struct and fills it using ioctl
-    fn get_fix_screeninfo(
-        device: &std::fs::File,
-        swtfb_client: Option<&swtfb_client::SwtfbClient>,
-    ) -> screeninfo::FixScreeninfo;
+    fn get_fix_screeninfo(device: &std::fs::File) -> screeninfo::FixScreeninfo;
     /// Creates a VarScreeninfo struct and fills it using ioctl
-    fn get_var_screeninfo(
-        device: &std::fs::File,
-        swtfb_client: Option<&swtfb_client::SwtfbClient>,
-    ) -> screeninfo::VarScreeninfo;
+    fn get_var_screeninfo(device: &std::fs::File) -> screeninfo::VarScreeninfo;
     /// Makes the proper ioctl call to set the VarScreenInfo.
     /// You must first update the contents of self.var_screen_info
     /// and then call this function.
     fn put_var_screeninfo(
         device: &std::fs::File,
-        swtfb_client: Option<&swtfb_client::SwtfbClient>,
         var_screen_info: &mut screeninfo::VarScreeninfo,
     ) -> bool;
 
     fn update_var_screeninfo(&mut self) -> bool;
 }
 
-pub mod refresh;
+pub enum PartialRefreshMode {
+    DryRun,
+    Async,
+    Wait,
+}
+
 pub trait FramebufferRefresh {
     /// Refreshes the entire screen with the provided parameters. If `wait_completion` is
     /// set to true, doesn't return before the refresh has been completed. Returns the marker.
@@ -186,7 +195,7 @@ pub trait FramebufferRefresh {
     fn partial_refresh(
         &self,
         region: &common::mxcfb_rect,
-        mode: refresh::PartialRefreshMode,
+        mode: PartialRefreshMode,
         waveform_mode: common::waveform_mode,
         temperature: common::display_temp,
         dither_mode: common::dither_mode,

@@ -3,18 +3,12 @@ use std::sync::atomic::Ordering;
 
 use log::warn;
 
-use crate::framebuffer;
 use crate::framebuffer::common;
-use crate::framebuffer::core;
+use crate::framebuffer::gen1::Gen1;
 use crate::framebuffer::mxcfb::*;
+use crate::framebuffer::{self, PartialRefreshMode};
 
-pub enum PartialRefreshMode {
-    DryRun,
-    Async,
-    Wait,
-}
-
-impl<'a> framebuffer::FramebufferRefresh for core::Framebuffer<'a> {
+impl<'a> framebuffer::FramebufferRefresh for Gen1 {
     fn full_refresh(
         &self,
         waveform_mode: common::waveform_mode,
@@ -42,12 +36,9 @@ impl<'a> framebuffer::FramebufferRefresh for core::Framebuffer<'a> {
             ..Default::default()
         };
 
-        let update_succeeded = if let Some(ref swtfb_client) = self.swtfb_client {
-            swtfb_client.send_mxcfb_update(&whole)
-        } else {
-            let pt: *const mxcfb_update_data = &whole;
-            (unsafe { libc::ioctl(self.device.as_raw_fd(), common::MXCFB_SEND_UPDATE, pt) }) >= 0
-        };
+        let pt: *const mxcfb_update_data = &whole;
+        let update_succeeded =
+            (unsafe { libc::ioctl(self.device.as_raw_fd(), common::MXCFB_SEND_UPDATE, pt) }) >= 0;
 
         if !update_succeeded {
             warn!("Sending full_refresh update failed!")
@@ -120,12 +111,9 @@ impl<'a> framebuffer::FramebufferRefresh for core::Framebuffer<'a> {
             ..Default::default()
         };
 
-        let update_succeeded = if let Some(ref swtfb_client) = self.swtfb_client {
-            swtfb_client.send_mxcfb_update(&whole)
-        } else {
-            let pt: *const mxcfb_update_data = &whole;
-            (unsafe { libc::ioctl(self.device.as_raw_fd(), common::MXCFB_SEND_UPDATE, pt) }) >= 0
-        };
+        let pt: *const mxcfb_update_data = &whole;
+        let update_succeeded =
+            (unsafe { libc::ioctl(self.device.as_raw_fd(), common::MXCFB_SEND_UPDATE, pt) }) >= 0;
 
         if !update_succeeded {
             warn!("Sending partial_refresh update failed!")
@@ -140,12 +128,6 @@ impl<'a> framebuffer::FramebufferRefresh for core::Framebuffer<'a> {
     }
 
     fn wait_refresh_complete(&self, update_marker: u32) -> u32 {
-        if let Some(ref swtfb_client) = self.swtfb_client {
-            swtfb_client.wait_for_update_complete();
-            // Assume success
-            return 0;
-        }
-
         let mut markerdata = mxcfb_update_marker_data {
             update_marker,
             collision_test: 0,
