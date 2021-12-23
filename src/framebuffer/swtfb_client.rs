@@ -142,47 +142,29 @@ impl SwtfbClient {
     }
 
     pub fn wait_for_update_complete(&self) {
+        println!("wait_for_update_complete: Called");
         if !self.do_wait_ioctl {
+            println!("wait_for_update_complete: do_wait_ioctl is false, not waiting.");
             return;
         }
 
         // https://github.com/ddvk/remarkable2-framebuffer/blob/1e288aa9/src/client/main.cpp#L149
 
         let sem_name_str = format!("/rm2fb.wait.{}", unsafe { libc::getpid() });
+        println!("wait_for_update_complete: Semaphore name (Rust String Debug): {:?}", sem_name_str);
         let mut sem_name = [0u8; 512];
         for (i, byte) in sem_name_str.as_bytes().iter().enumerate() {
             sem_name[i] = *byte;
         }
-        self.send_wait_update(&wait_sem_data { sem_name });
+        let dat = wait_sem_data { sem_name };
+        self.send_wait_update(&dat);
+        println!("wait_for_update_complete: Sent send_wait_update to MSQ: {:?}", dat);
         let sem_name_c = CString::new(sem_name_str.as_str()).unwrap();
-        // Make up to 3 attempts at sem_open
-        // The rust implemenation can be a little bit too fast,
-        // causing a SEM_FAILED result with errno = 22 ("Invalid value").
-        // This adds some arbitrary delay should this happen.
-        // This is really rare, but could be observed when using the lib
-        // with plato, (probably exessive calls to wait() there).
-        let mut sem_open_attempts: u8 = 0;
-        let sem = loop {
-            let sem = unsafe { libc::sem_open(sem_name_c.as_ptr(), libc::O_CREAT) };
-            sem_open_attempts += 1;
-            if sem == libc::SEM_FAILED {
-                // Attempt up to 3 times before failing
-                if sem_open_attempts <= 3 {
-                    log::debug!("Failed to open a semaphore to wait for swtfb update (attempt {} of 3). Waiting 5ms...", sem_open_attempts);
-                    std::thread::sleep(std::time::Duration::from_millis(5));
-                    continue;
-                } else {
-                    /*let cstr = CString::new("Opening semaphore to wait for swtfb update failed").unwrap();
-                    unsafe { libc::perror(cstr.as_ptr()) };*/
-                    panic!(
-                        "Opening semaphore to wait for swtfb update failed: {:?}",
-                        unsafe { CStr::from_ptr(libc::strerror(*libc::__errno_location())) }
-                    );
-                }
-            } else {
-                break sem;
-            }
-        };
+
+        println!("wait_for_update_complete: Semaphore name (C String Debug): {:?}", sem_name_c);
+        println!("wait_for_update_complete: Calling sem_open({:?})", sem_name_c);
+        let sem = unsafe { libc::sem_open(sem_name_c.as_ptr(), libc::O_CREAT) };
+        println!("wait_for_update_complete: sem_open({:?}) {} SEM_FAILED", sem_name_c, if sem == libc::SEM_FAILED { "==" } else { "!=" });
 
         let mut timeout = libc::timespec {
             tv_nsec: 0,
@@ -191,14 +173,20 @@ impl SwtfbClient {
         unsafe {
             libc::clock_gettime(libc::CLOCK_REALTIME, &mut timeout);
         }
+        println!("wait_for_update_complete: clock_gettime(CLOCK_REALTIME, &mut timeout); timeout is now {:?}", timeout);
         timeout.tv_nsec += SEM_WAIT_TIMEOUT_NS;
         // Move overflow ns to secs
         timeout.tv_sec += timeout.tv_nsec / 1_000_000_000;
         timeout.tv_nsec %= 1_000_000_000;
+        println!("wait_for_update_complete: Added {:?}. timeout is now {:?}", std::time::Duration::from_nanos(SEM_WAIT_TIMEOUT_NS as u64), timeout);
 
         unsafe {
-            libc::sem_timedwait(sem, &timeout);
-            libc::sem_unlink(sem_name_c.as_ptr() as *const libc::c_char);
+            println!("wait_for_update_complete: Calling sem_timedwait(sem, timeout)...");
+            let err = libc::sem_timedwait(sem, &timeout);
+            println!("wait_for_update_complete: Called sem_timedwait(sem, timeout) => {}", err);
+            println!("wait_for_update_complete: Calling sem_unlink(sem)...");
+            let err = libc::sem_unlink(sem_name_c.as_ptr() as *const libc::c_char);
+            println!("wait_for_update_complete: Called sem_unlink(sem) => {}", err);
         }
     }
 
