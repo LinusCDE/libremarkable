@@ -18,8 +18,8 @@ static MT_HSCALAR: Lazy<f32> = Lazy::new(|| f32::from(DISPLAYWIDTH) / f32::from(
 static MT_VSCALAR: Lazy<f32> = Lazy::new(|| f32::from(DISPLAYHEIGHT) / f32::from(*MTHEIGHT));
 
 pub struct MultitouchState {
-    fingers: Mutex<FxHashMap<i32 /* slot */, Finger>>,
-    current_slot: AtomicI32,
+    pub fingers: Mutex<FxHashMap<i32 /* slot */, Finger>>,
+    pub current_slot: AtomicI32,
 }
 
 impl ::std::default::Default for MultitouchState {
